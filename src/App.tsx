@@ -1,25 +1,114 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState, useEffect } from "react";
+import { Note as NoteModel } from "./models/notes";
+import Note from "./components/Note";
+import { Button, Col, Container, Row, Spinner } from "react-bootstrap";
+import styles from "../src/styles/NotesPage.module.css";
+import styleUtils from "../src/styles/util.module.css";
+import * as NotesApi from "./network/notes_api";
+import AddNoteDialog from "./components/AddEditNoteDialog";
+import { FaPlus } from "react-icons/fa";
+import AddEditNoteDialog from "./components/AddEditNoteDialog";
 
 function App() {
+  const [notes, setNotes] = useState<NoteModel[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [showNotesLoadingError, setShowNotesLoadingError] = useState(false);
+  const [showAddNoteDialog, setShowAddNoteDialog] = useState(false);
+  const [noteToEdit, setNoteToEdit] = useState<NoteModel | null>(null);
+  useEffect(() => {
+    async function loadNotes() {
+      try {
+        setShowNotesLoadingError(false);
+        setNotesLoading(true);
+        const notes = await NotesApi.fetchNotes();
+        setNotes(notes);
+      } catch (error) {
+        console.error(error);
+        setShowNotesLoadingError(true);
+      } finally {
+        setNotesLoading(false);
+      }
+    }
+    loadNotes();
+  }, []);
+
+  async function deleteNote(note: NoteModel) {
+    try {
+      await NotesApi.deleteNote(note._id);
+      setNotes(notes.filter((existingNote) => existingNote._id !== note._id));
+    } catch (error) {
+      console.error(error);
+      alert(error);
+    }
+  }
+
+  const notesGrid = (
+    <Row xs={1} md={2} xl={3} className="g-4">
+      {notes.map((note) => (
+        <Col key={note._id}>
+          <Note
+            onNoteClicked={setNoteToEdit}
+            onDeleteNoteClicked={deleteNote}
+            note={note}
+            className={styles.note}
+          />
+        </Col>
+      ))}
+    </Row>
+  );
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Container>
+      <Button
+        className={`mb-2 mt-2 ${styleUtils.blockCenter} ${styleUtils.flexCenter}`}
+        onClick={() => setShowAddNoteDialog(true)}
+      >
+        <FaPlus />
+        Add new note
+      </Button>
+      {notesLoading && <Spinner animation="border" variant="primary" />}
+      {showNotesLoadingError && (
+        <p>Something went wrong. Please refresh the page.</p>
+      )}
+      {!notesLoading && !showNotesLoadingError && <> {}</>}
+      <Row xs={1} md={2} xl={3} className="g-4">
+        {notes.map((note) => (
+          <Col key={note._id}>
+            <Note
+              onNoteClicked={setNoteToEdit}
+              onDeleteNoteClicked={deleteNote}
+              note={note}
+              className={styles.note}
+            />
+          </Col>
+        ))}
+      </Row>
+      {showAddNoteDialog && (
+        <AddNoteDialog
+          onDismiss={() => setShowAddNoteDialog(false)}
+          onNoteSaved={(newNote) => {
+            setNotes([...notes]);
+            setShowAddNoteDialog(false);
+          }}
+        />
+      )}
+      {noteToEdit && (
+        <AddEditNoteDialog
+          noteToEdit={noteToEdit}
+          onDismiss={() => setNoteToEdit(null)}
+          onNoteSaved={(updatedNote) => {
+            setNotes(
+              notes.map((existingNote) =>
+                existingNote._id === updatedNote._id
+                  ? updatedNote
+                  : existingNote
+              )
+            );
+            setNoteToEdit(null);
+          }}
+        />
+      )}
+    </Container>
   );
 }
 
